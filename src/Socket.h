@@ -72,7 +72,7 @@
 #define SOCKET int
 #endif
 
-#include "mutex_type.h" /* Needed for mutex_type */
+#include "Thread.h" /* Needed for mutex_type */
 
 /** socket operation completed successfully */
 #define TCPSOCKET_COMPLETE 0
