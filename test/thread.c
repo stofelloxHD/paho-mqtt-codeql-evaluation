@@ -226,7 +226,7 @@ void myassert(char* filename, int lineno, char* description, int value, char* fo
     	MyLog(LOGA_DEBUG, "Assertion succeeded, file %s, line %d, description: %s", filename, lineno, description);
 }
 
-thread_return_type evt_secondary(void* n)
+thread_return_type WINAPI evt_secondary(void* n)
 {
 	int rc = 0;
 	evt_type evt = n;
