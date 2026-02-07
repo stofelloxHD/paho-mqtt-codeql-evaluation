@@ -2086,7 +2086,9 @@ thread_return_type WINAPI MQTTAsync_receiveThread(void* n)
 		MQTTPacket* pack = NULL;
 
 		MQTTAsync_unlock_mutex(mqttasync_mutex);
+		Log(TRACE_PROTOCOL, -1, "MQTTAsync_cycle call timeout %lu", timeout);
 		pack = MQTTAsync_cycle(&sock, timeout, &rc);
+		Log(TRACE_PROTOCOL, -1, "MQTTAsync_cycle returns pack %p, sock %d, timeout %lu, rc %d", pack, sock, timeout, rc);
 		MQTTAsync_lock_mutex(mqttasync_mutex);
 		if (MQTTAsync_tostop)
 			break;
@@ -3066,15 +3068,16 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	{
 #endif
 		int should_stop = 0;
+		int interrupted = 0;
 
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
-		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, &rc1);
+		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, &rc1, &interrupted);
 		*rc = rc1;
 		MQTTAsync_lock_mutex(mqttasync_mutex);
 		should_stop = MQTTAsync_tostop;
 		MQTTAsync_unlock_mutex(mqttasync_mutex);
-		if (!should_stop && *sock == 0 && (timeout > 0L))
-			MQTTAsync_sleep(100L);
+		if (!should_stop && *sock == 0 && (timeout > 0L) && (interrupted == 0))
+			MQTTAsync_sleep(50L);
 #if defined(OPENSSL)
 	}
 #endif

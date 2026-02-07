@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2025 IBM Corp., Ian Craggs and others
+ * Copyright (c) 2009, 2026 IBM Corp., Ian Craggs and others
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
@@ -124,7 +124,7 @@ int Socket_error(char* aString, SOCKET sock)
 	if (err != EINTR && err != EAGAIN && err != EINPROGRESS && err != EWOULDBLOCK)
 	{
 		if (strcmp(aString, "shutdown") != 0 || (err != ENOTCONN && err != ECONNRESET))
-			Log(TRACE_MINIMUM, -1, "Socket error %s(%d) in %s for socket %d", strerror(err), err, aString, sock);
+			Log(LOG_PROTOCOL, -1, "Socket error %s(%d) in %s for socket %d", strerror(err), err, aString, sock);
 	}
 	return err;
 }
@@ -145,6 +145,26 @@ void SIGPIPE_ignore()
 #endif
 }
 #endif
+
+static int sockfd[2];
+
+int Socket_pair()
+{
+	int rc = 0;
+
+	FUNC_ENTRY;
+	if ((rc = socketpair(AF_LOCAL, SOCK_STREAM, 0, sockfd)) == 0) /* 0 if successful */
+		rc = Socket_addSocket(sockfd[0]);
+	FUNC_EXIT_RC(rc);
+	return rc;
+}
+
+int Socket_interrupt()
+{
+	printf("Calling interrupt\n");
+	int rc = write(sockfd[1], "\0", 1);
+	return rc;
+}
 
 /**
  * Initialize the socket module
@@ -183,6 +203,7 @@ void Socket_outInitialize(void)
 	mod_s.saved.fds_read = NULL;
 	mod_s.saved.nfds = 0;
 #endif
+	Socket_pair();
 	FUNC_EXIT;
 }
 
@@ -284,6 +305,7 @@ static int cmpsockfds(const void *p1, const void *p2)
 /**
  * Add a socket to the list of socket to check with select
  * @param newSd the new socket to add
+ * @return 0 if successful
  */
 int Socket_addSocket(SOCKET newSd)
 {
@@ -394,7 +416,9 @@ int isReady(int index)
 
 	FUNC_ENTRY;
 
-	if ((mod_s.saved.fds_read[index].revents & POLLHUP) || (mod_s.saved.fds_read[index].revents & POLLNVAL))
+	if (*socket == sockfd[0]) /* don't return the interrupting socket */
+		rc = 0;
+	else if ((mod_s.saved.fds_read[index].revents & POLLHUP) || (mod_s.saved.fds_read[index].revents & POLLNVAL))
 		; /* signal work to be done if there is an error on the socket */
 	else if  (ListFindItem(mod_s.connect_pending, socket, intcompare) &&
 			(mod_s.saved.fds_write[index].revents & POLLOUT))
@@ -408,6 +432,24 @@ int isReady(int index)
 	return rc;
 }
 #endif
+
+int isConnectReady(int index)
+{
+	int rc = 0;
+	SOCKET* socket = &mod_s.saved.fds_write[index].fd;
+
+	FUNC_ENTRY;
+	if (ListFindItem(mod_s.connect_pending, socket, intcompare))
+		Log(TRACE_PROTOCOL, -1, "isConnectReady connect_pending for socket %d, POLLOUT %d",
+			*socket, (mod_s.saved.fds_write[index].revents & POLLOUT));
+	if (ListFindItem(mod_s.connect_pending, socket, intcompare) /* &&
+			(mod_s.saved.fds_write[index].revents & POLLOUT)*/)
+	{
+		rc = 1;
+	}
+	FUNC_EXIT_RC(rc);
+	return rc;
+}
 
 
 #if defined(USE_SELECT)
@@ -528,7 +570,7 @@ exit:
  *  @param rc a value other than 0 indicates an error of the returned socket
  *  @return the socket next ready, or 0 if none is ready
  */
-SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc)
+SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc, int* interrupted)
 {
 	SOCKET sock = 0;
 	*rc = 0;
@@ -628,10 +670,42 @@ SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* 
 			*rc = SOCKET_ERROR;
 			goto exit;
 		}
+		/* TODO: if there is a writeable socket in the connecting state (see isReady)
+		 * then set the timeout for the next poll to 0, so we can handle the connect
+		 * immediately */
+		mod_s.saved.cur_fd = 0;
+		while (mod_s.saved.cur_fd != -1)
+		{
+			if (isConnectReady(mod_s.saved.cur_fd))
+			{
+				printf("Socket %d is connecting, reducing timeout from %d, sockets %d\n", mod_s.saved.cur_fd, timeout_ms,
+					mod_s.saved.nfds);
+
+				timeout_ms = (mod_s.saved.nfds > 2) ? 10 : 10;
+				break;
+			}
+			mod_s.saved.cur_fd = (mod_s.saved.cur_fd == mod_s.saved.nfds - 1) ? -1 : mod_s.saved.cur_fd + 1;
+		}
 
 		/* Prevent performance issue by unlocking the socket_mutex while waiting for a ready socket. */
 		Paho_thread_unlock_mutex(mutex);
+		/* clear interrupt socket */
+		{
+			static char dbuf[1];
+			/*int irc = */read(sockfd[0], dbuf, 1);
+			//printf("rc %d from read for interrupt\n", irc);
+		}
+		Log(TRACE_PROTOCOL, -1, "Start poll, sockets %d", mod_s.saved.nfds);
 		*rc = poll(mod_s.saved.fds_read, mod_s.saved.nfds, timeout_ms);
+		Log(TRACE_PROTOCOL, -1, "Return code %d from poll", *rc);
+		/* clear interrupt socket */
+		{
+			static char dbuf[1];
+			int irc = read(sockfd[0], dbuf, 1);
+			//printf("rc %d from read for interrupt\n", irc);
+			if (irc != -1)
+				*interrupted = 1;
+		}
 		Paho_thread_lock_mutex(mutex);
 		if (*rc == SOCKET_ERROR)
 		{
@@ -955,6 +1029,7 @@ int Socket_close_only(SOCKET socket)
 	int rc;
 
 	FUNC_ENTRY;
+	Socket_interrupt();
 #if defined(_WIN32)
 	if (shutdown(socket, SD_BOTH) == SOCKET_ERROR)
 		Socket_error("shutdown", socket);
@@ -1298,6 +1373,7 @@ int Socket_new(const char* addr, size_t addr_len, int port, SOCKET* sock)
 						goto exit;
 					}
 					Log(TRACE_MIN, 15, "Connect pending");
+					Socket_interrupt();
 				}
 			}
             /* Prevent socket leak by closing unusable sockets,

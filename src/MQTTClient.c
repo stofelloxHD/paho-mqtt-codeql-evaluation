@@ -2616,6 +2616,7 @@ static MQTTPacket* MQTTClient_cycle(SOCKET* sock, ELAPSED_TIME_TYPE timeout, int
 	static Ack ack;
 	MQTTPacket* pack = NULL;
 	int rc1 = 0;
+	int interrupted = 0;
 	START_TIME_TYPE start;
 
 	FUNC_ENTRY;
@@ -2625,7 +2626,7 @@ static MQTTPacket* MQTTClient_cycle(SOCKET* sock, ELAPSED_TIME_TYPE timeout, int
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
 #endif
 		start = MQTTTime_start_clock();
-		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, rc);
+		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, rc, &interrupted);
 		*rc = rc1;
 		if (*sock == 0 && timeout >= 100L && MQTTTime_elapsed(start) < (int64_t)10)
 			MQTTTime_sleep(100L);
