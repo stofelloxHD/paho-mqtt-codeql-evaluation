@@ -146,6 +146,133 @@ void SIGPIPE_ignore()
 }
 #endif
 
+/*
+ * socketpair() emulation for Windows
+ * Creates a pair of connected sockets using TCP loopback
+ */
+
+#if defined(_WIN32)
+
+#ifndef AF_LOCAL
+#define AF_LOCAL AF_INET
+#endif
+
+int socketpair(int domain, int type, int protocol, SOCKET socks[2])
+{
+    SOCKET listener = INVALID_SOCKET;
+    SOCKET client = INVALID_SOCKET;
+    SOCKET server = INVALID_SOCKET;
+    struct sockaddr_in addr;
+    int addr_len = sizeof(addr);
+    int reuse = 1;
+
+    /* Only support AF_INET (or AF_UNIX which we map to AF_INET) */
+    if (domain != AF_INET && domain != AF_UNIX) {
+        errno = EAFNOSUPPORT;
+        return -1;
+    }
+
+    /* Only support SOCK_STREAM */
+    if (type != SOCK_STREAM) {
+        errno = EPROTONOSUPPORT;
+        return -1;
+    }
+
+    socks[0] = socks[1] = INVALID_SOCKET;
+
+    /* Create listener socket on loopback */
+    listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener == INVALID_SOCKET) {
+        goto error;
+    }
+
+    /* Allow rapid reuse of the address */
+    setsockopt(listener, SOL_SOCKET, SO_REUSEADDR,
+               (const char*)&reuse, sizeof(reuse));
+
+    /* Bind to loopback with OS-assigned port */
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;  /* Let OS choose port */
+
+    if (bind(listener, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+        goto error;
+    }
+
+    /* Get the actual address (with port assigned by OS) */
+    if (getsockname(listener, (struct sockaddr*)&addr, &addr_len) == SOCKET_ERROR) {
+        goto error;
+    }
+
+    /* Listen for connection */
+    if (listen(listener, 1) == SOCKET_ERROR) {
+        goto error;
+    }
+
+    /* Create client socket */
+    client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (client == INVALID_SOCKET) {
+        goto error;
+    }
+
+    /* Connect to listener */
+    if (connect(client, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+        goto error;
+    }
+
+    /* Accept connection */
+    server = accept(listener, NULL, NULL);
+    if (server == INVALID_SOCKET) {
+        goto error;
+    }
+
+    /* Close listener - no longer needed */
+    closesocket(listener);
+
+    /* Return the pair */
+    socks[0] = client;
+    socks[1] = server;
+
+    return 0;
+
+error:
+    {
+        int saved_errno = WSAGetLastError();
+
+        if (listener != INVALID_SOCKET) {
+            closesocket(listener);
+        }
+        if (client != INVALID_SOCKET) {
+            closesocket(client);
+        }
+        if (server != INVALID_SOCKET) {
+            closesocket(server);
+        }
+
+        /* Map Winsock error to errno */
+        switch (saved_errno) {
+            case WSAEAFNOSUPPORT:
+                errno = EAFNOSUPPORT;
+                break;
+            case WSAEPROTONOSUPPORT:
+                errno = EPROTONOSUPPORT;
+                break;
+            case WSAEMFILE:
+            case WSAENOBUFS:
+                errno = EMFILE;
+                break;
+            default:
+                errno = EIO;
+                break;
+        }
+
+        return -1;
+    }
+}
+
+#endif /* _WIN32 */
+
 static int sockfd[2];
 
 int Socket_pair()
@@ -162,7 +289,7 @@ int Socket_pair()
 int Socket_interrupt()
 {
 	printf("Calling interrupt\n");
-	int rc = write(sockfd[1], "\0", 1);
+	int rc = send(sockfd[1], "\0", 1, 0);
 	return rc;
 }
 
@@ -692,7 +819,7 @@ SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* 
 		/* clear interrupt socket */
 		{
 			static char dbuf[1];
-			/*int irc = */read(sockfd[0], dbuf, 1);
+			/*int irc = */recv(sockfd[0], dbuf, 1, 0);
 			//printf("rc %d from read for interrupt\n", irc);
 		}
 		Log(TRACE_PROTOCOL, -1, "Start poll, sockets %d", mod_s.saved.nfds);
@@ -701,7 +828,7 @@ SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* 
 		/* clear interrupt socket */
 		{
 			static char dbuf[1];
-			int irc = read(sockfd[0], dbuf, 1);
+			int irc = recv(sockfd[0], dbuf, 1, 0);
 			//printf("rc %d from read for interrupt\n", irc);
 			if (irc != -1)
 				*interrupted = 1;
