@@ -273,7 +273,7 @@ error:
 
 #endif /* _WIN32 */
 
-static int sockfd[2];
+static SOCKET sockfd[2];
 
 int Socket_pair()
 {
