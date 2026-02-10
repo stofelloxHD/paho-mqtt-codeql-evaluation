@@ -3067,17 +3067,21 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	if ((*sock = SSLSocket_getPendingRead()) == -1)
 	{
 #endif
-		int should_stop = 0;
+		/*int should_stop = 0;*/
 		int interrupted = 0;
 
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
 		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, &rc1, &interrupted);
 		*rc = rc1;
-		MQTTAsync_lock_mutex(mqttasync_mutex);
+		/*MQTTAsync_lock_mutex(mqttasync_mutex);
 		should_stop = MQTTAsync_tostop;
-		MQTTAsync_unlock_mutex(mqttasync_mutex);
-		if (!should_stop && *sock == 0 && (timeout > 0L) && (interrupted == 0))
-			MQTTAsync_sleep(50L);
+		MQTTAsync_unlock_mutex(mqttasync_mutex);*/
+		/* Frank deleted this small delay on the suggestion of Claude.
+		 I want to preserve it as a comment in case we need it in the future.
+		 The preceeding 3 lines of code are only needed if the following line
+		 is reinstated - Ian
+		 if (!should_stop && *sock == 0 && (timeout > 0L) && (interrupted == 0))
+			MQTTAsync_sleep(50L);*/
 #if defined(OPENSSL)
 	}
 #endif
