@@ -156,7 +156,7 @@ struct Socket_interface_choice {
 
 void Socket_outInitialize(void);
 void Socket_outTerminate(void);
-SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
+SOCKET Socket_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc, int* interrupted);
 int Socket_getch(SOCKET socket, char* c);
 char *Socket_getdata(SOCKET socket, size_t bytes, size_t* actual_len, int* rc);
 int Socket_putdatas(SOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs);
@@ -187,5 +187,6 @@ void Socket_setWriteAvailableCallback(Socket_writeAvailable*);
 typedef struct Socket_interface_choice Socket_selectInterface(SOCKET socket, int count, struct Socket_interface* interfaces);
 void Socket_setSelectInterfaceCallback(Socket_selectInterface*);
 
+int Socket_interrupt();
 
 #endif /* SOCKET_H */
