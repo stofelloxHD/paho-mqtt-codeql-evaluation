@@ -151,6 +151,10 @@ void MyLog(int LOGA_level, char* format, ...)
 int tests = 0;
 int failures = 0;
 
+#if !defined(__func__)
+#define __func__ __FUNCTION__
+#endif
+
 #define ASSERT(condition, message) \
 	do { \
 		tests++; \
