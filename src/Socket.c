@@ -1510,8 +1510,7 @@ int Socket_new(const char* addr, size_t addr_len, int port, SOCKET* sock)
 #if !defined(NO_TCP_NODELAY)
 			{
 				int opt = 1;
-				socklen_t opt_size = sizeof(opt);
-				
+
 				if (setsockopt(*sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) != 0)
 					Log(LOG_ERROR, -1, "Could not set TCP_NODELAY for socket %d", *sock);
 			}
