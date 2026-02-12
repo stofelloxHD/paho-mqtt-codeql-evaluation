@@ -108,7 +108,12 @@ void getopts(int argc, char** argv)
 }
 
 /* Logging */
-void MyLog(int level, char* format, ...)
+#define LOGA_DEBUG 0
+#define LOGA_INFO 1
+#include <stdarg.h>
+#include <time.h>
+#include <sys/timeb.h>
+void MyLog(int LOGA_level, char* format, ...)
 {
 	static char msg_buf[512];
 	va_list args;
