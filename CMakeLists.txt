@@ -64,6 +64,7 @@ option(PAHO_ENABLE_TESTING "Build tests and run" TRUE)
 option(PAHO_ENABLE_CPACK "Enable CPack" TRUE)
 option(PAHO_HIGH_PERFORMANCE "Disable tracing and heap tracking" FALSE)
 option(PAHO_USE_SELECT "Revert to select system call instead of poll" FALSE)
+option(PAHO_NO_TCP_NODELAY "Don't disable Nagle's algorithm on TCP sockets" FALSE)
 
 if(NOT WIN32)
     option(PAHO_WITH_UNIX_SOCKETS "Flag that defines whether to enable Unix-domain sockets" FALSE)
@@ -83,6 +84,10 @@ endif()
 
 if(PAHO_WITH_LIBUUID)
   add_definitions(-DUSE_LIBUUID=1)
+endif()
+
+if(PAHO_NO_TCP_NODELAY)
+  add_definitions(-DNO_TCP_NODELAY=1)
 endif()
 
 if(NOT PAHO_BUILD_SHARED AND NOT PAHO_BUILD_STATIC)
