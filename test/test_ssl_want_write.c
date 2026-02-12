@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2024
+ * Copyright (c) 2024, 2026 Ian Craggs and others
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
@@ -110,23 +110,34 @@ void getopts(int argc, char** argv)
 /* Logging */
 #define LOGA_DEBUG 0
 #define LOGA_INFO 1
-#include <stdarg.h>
-#include <time.h>
-#include <sys/timeb.h>
 void MyLog(int LOGA_level, char* format, ...)
 {
-	static char msg_buf[512];
+	static char msg_buf[256];
 	va_list args;
+#if defined(_WIN32) || defined(_WINDOWS)
+	struct timeb ts;
+#else
 	struct timeval ts;
+#endif
 	struct tm timeinfo;
 
-	if (!options.verbose)
+	if (LOGA_level == LOGA_DEBUG && options.verbose == 0)
 		return;
 
+#if defined(_WIN32) || defined(_WINDOWS)
+	ftime(&ts);
+	localtime_s(&timeinfo, &ts.time);
+#else
 	gettimeofday(&ts, NULL);
 	localtime_r(&ts.tv_sec, &timeinfo);
+#endif
 	strftime(msg_buf, 80, "%Y%m%d %H%M%S", &timeinfo);
+
+#if defined(_WIN32) || defined(_WINDOWS)
+	sprintf(&msg_buf[strlen(msg_buf)], ".%.3hu ", ts.millitm);
+#else
 	sprintf(&msg_buf[strlen(msg_buf)], ".%.3lu ", ts.tv_usec / 1000L);
+#endif
 
 	va_start(args, format);
 	vsnprintf(&msg_buf[strlen(msg_buf)], sizeof(msg_buf) - strlen(msg_buf), format, args);
