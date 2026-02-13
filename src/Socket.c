@@ -1502,16 +1502,18 @@ int Socket_new(const char* addr, size_t addr_len, int port, SOCKET* sock)
 		else
 		{
 #if defined(NOSIGPIPE)
-			int opt = 1;
+			{
+				int opt = 1;
 
-			if (setsockopt(*sock, SOL_SOCKET, SO_NOSIGPIPE, (void*)&opt, sizeof(opt)) != 0)
-				Log(LOG_ERROR, -1, "Could not set SO_NOSIGPIPE for socket %d", *sock);
+				if (setsockopt(*sock, SOL_SOCKET, SO_NOSIGPIPE, (void*)&opt, sizeof(opt)) != 0)
+					Log(LOG_ERROR, -1, "Could not set SO_NOSIGPIPE for socket %d", *sock);
+			}
 #endif
 #if !defined(NO_TCP_NODELAY)
 			{
 				int opt = 1;
 
-				if (setsockopt(*sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) != 0)
+				if (setsockopt(*sock, IPPROTO_TCP, TCP_NODELAY, (void*)&opt, sizeof(opt)) != 0)
 					Log(LOG_ERROR, -1, "Could not set TCP_NODELAY for socket %d", *sock);
 			}
 #endif
