@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2023 IBM Corp., Ian Craggs
+ * Copyright (c) 2009, 2026 IBM Corp., Ian Craggs
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
@@ -776,7 +776,14 @@ int SSLSocket_setSocketForSSL(networkHandles* net, MQTTClient_SSLOptions* opts,
    		if (opts->enableServerCertAuth)
 			SSL_CTX_set_verify(net->ctx, SSL_VERIFY_PEER, NULL);
 
-		net->ssl = SSL_new(net->ctx);
+		if ((net->ssl = SSL_new(net->ctx)) == NULL)
+		{
+			if (opts->struct_version >= 3)
+				rc = SSLSocket_error("SSL_new", net->ssl, net->socket, rc, opts->ssl_error_cb, opts->ssl_error_context);
+			else
+				rc = SSLSocket_error("SSL_new", net->ssl, net->socket, rc, NULL, NULL);
+			goto exit;
+		}
 
 		/* Log all ciphers available to the SSL sessions (loaded in ctx) */
 		for (i = 0; ;i++)
@@ -807,7 +814,7 @@ int SSLSocket_setSocketForSSL(networkHandles* net, MQTTClient_SSLOptions* opts,
 		else
 			rc = PAHO_MEMORY_ERROR;
 	}
-
+exit:
 	FUNC_EXIT_RC(rc);
 	return rc;
 }
