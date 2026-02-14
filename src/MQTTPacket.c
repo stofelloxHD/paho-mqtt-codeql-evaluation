@@ -869,13 +869,14 @@ int MQTTPacket_formatPayload(int buflen, char* buf, int payloadlen, char* payloa
 		else
 		{
 			static char *hexdigit = "0123456789ABCDEF";
+			unsigned char curchar = (unsigned char)payload[i];
 
 			if (pos >= buflen - 3)
 				break;
 			buf[pos++] = '\\';
 			buf[pos++] = 'x';
-			buf[pos++] = hexdigit[payload[i] & 0xF0];
-			buf[pos++] = hexdigit[payload[i] & 0x0F];
+			buf[pos++] = hexdigit[(curchar & 0xF0) >> 4];
+			buf[pos++] = hexdigit[curchar & 0x0F];
 		}
 	}
 
