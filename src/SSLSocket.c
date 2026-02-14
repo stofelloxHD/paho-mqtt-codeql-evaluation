@@ -966,7 +966,8 @@ char *SSLSocket_getdata(SSL* ssl, SOCKET socket, size_t bytes, size_t* actual_le
 		goto exit;
 	}
 
-	buf = SocketBuffer_getQueuedData(socket, bytes, actual_len);
+	if ((buf = SocketBuffer_getQueuedData(socket, bytes, actual_len)) == NULL)
+		goto exit;
 
 	if (*actual_len != bytes)
 	{
