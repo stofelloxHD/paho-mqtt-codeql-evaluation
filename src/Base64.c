@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2018, 2019 Wind River Systems, Inc. All Rights Reserved.
+ * Copyright (c) 2018, 2026 Wind River Systems, Inc., and others
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
