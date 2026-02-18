@@ -459,7 +459,10 @@ int MQTTProtocol_handlePubacks(void* pack, SOCKET sock, Publications** pubToRemo
 	{
 		Messages* m = (Messages*)(client->outboundMsgs->current->content);
 		if (m->qos != 1)
-			Log(TRACE_MIN, 4, NULL, "PUBACK", client->clientID, puback->msgId, m->qos);
+		{
+			Log(LOG_ERROR, 4, NULL, "PUBACK", client->clientID, puback->msgId, m->qos);
+			rc = SOCKET_ERROR;
+		}
 		else
 		{
 			Log(TRACE_MIN, 6, NULL, "PUBACK", client->clientID, puback->msgId);
